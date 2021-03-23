@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bml-ilo-login-secret
+type: Opaque
+data:
+  username: "{{ bml_ilo_username | b64encode }}"
+  password: "{{ bml_ilo_password | b64encode }}"
+---
+apiVersion: metal3.io/v1alpha1
+kind: BareMetalHost
+metadata:
+  name: <TODO>
+spec:
+  online: true
+  bootMACAddress: <TODO>
+  bootMode: legacy
+  bmc:
+    address: <TODO>
+    credentialsName: bml-ilo-login-secret
+    disableCertificateVerification: true
