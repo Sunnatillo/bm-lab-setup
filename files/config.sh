@@ -144,7 +144,7 @@ NUM_NODES=0
 #export SUSHY_TOOLS_IMAGE="quay.io/metal3-io/sushy-tools"
 
 # APIEndpoint IP for target cluster
-export CLUSTER_APIENDPOINT_IP="192.168.0.249"
+#export CLUSTER_APIENDPOINT_IP="192.168.111.249"
 
 # Cluster provisioning Interface
 #export CLUSTER_PROVISIONING_INTERFACE="ironicendpoint"
