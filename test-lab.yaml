@@ -1,0 +1,17 @@
+- hosts: bm-m3-lab
+  tasks:
+  - name: Update NUM_NODES in config_{USER}.sh
+    lineinfile:
+      path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
+      regexp: "^NUM_NODES="
+      line: "NUM_NODES=4"
+
+  - name: Verify deployment
+    shell:
+      cmd: "make verify"
+      chdir: "/home/{{ ansible_user_id }}/metal3-dev-env/"
+
+  - name: Run tests
+    shell:
+      cmd: "make test"
+      chdir: "/home/{{ ansible_user_id }}/metal3-dev-env/"

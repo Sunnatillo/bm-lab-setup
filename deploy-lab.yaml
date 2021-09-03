@@ -54,6 +54,20 @@
           chdir: "/home/{{ ansible_user_id }}/metal3-dev-env/"
         tags: install_requirements
 
+      - name: Set NUM_NODES to 0 for host setup (since we want to use real nodes instead of virtual ones)
+        lineinfile:
+          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
+          regexp: "^NUM_NODES="
+          line: "NUM_NODES=0"
+      - lineinfile:
+          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
+          regexp: "^NUM_OF_MASTER_REPLICAS="
+          line: "NUM_OF_MASTER_REPLICAS=0"
+      - lineinfile:
+          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
+          regexp: "^NUM_OF_WORKER_REPLICAS="
+          line: "NUM_OF_WORKER_REPLICAS=0"
+
       - name: Configure host
         shell:
           cmd: "make configure_host"
@@ -68,14 +82,6 @@
           protocol: udp
           jump: ACCEPT
         become: true
-
-        # Workaround for an issue where libvirtd isn't ready for `minikube
-        # start` immediately after `systemctl restart libvirtd`
-      - name: HACK fix libvirtd restart + dnsmasq race condition with minikube startup
-        lineinfile:
-          path: "/home/{{ ansible_user_id }}/metal3-dev-env/03_launch_mgmt_cluster.sh"
-          insertafter: init_minikube
-          line: sleep 2
 
       - name: Launch management cluster
         shell: 
@@ -98,3 +104,26 @@
           cmd: kubectl apply -f ./bmhosts_crs.yaml -n metal3
           chdir: "/opt/metal3-dev-env/"
         tags: kubectl_apply
+
+      - name: Set VLAN 3 interface to be up
+        shell:
+          cmd: "ip link set up dev bmext"
+        become: true
+        tags: bmext
+
+      - name: Check if bmext interface has been added to bridge
+        shell:
+          cmd: "brctl show baremetal | grep bmext"
+        become: true
+        failed_when: false
+        changed_when: false
+        register: brctl_grep_bmext
+        tags: bmext
+
+      - name: Add VLAN 3 interface to baremetal bridge
+        shell:
+          cmd: "brctl addif baremetal bmext"
+        become: true
+        when: brctl_grep_bmext.rc != 0
+        tags: bmext
+

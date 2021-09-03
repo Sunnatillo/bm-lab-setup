@@ -23,8 +23,8 @@
 #
 #export EXTERNAL_SUBNET_V4="192.168.111.0/24"
 #export EXTERNAL_SUBNET_V6="fd55::/64"
-
-NUM_NODES=0
+export EXTERNAL_VLAN_ID=3
+#export NODES_PLATFORM="baremetal"
 #PRO_IF="provision"
 #EXT_IF="eno1"
 
@@ -117,7 +117,7 @@ NUM_NODES=0
 
 # Image OS (can be "Cirros", "Ubuntu", "Centos", overriden by IMAGE_* if set)
 #
-#export IMAGE_OS="Cirros"
+export IMAGE_OS="Ubuntu"
 
 # Image for target hosts deployment
 #
@@ -133,7 +133,7 @@ NUM_NODES=0
 
 # Container image for ironic pod
 #
-#export IRONIC_IMAGE="macaptain/ironic"
+#export IRONIC_IMAGE="fmuyassarov/ironic-image:latest"
 
 # Container image for vbmc container
 #
