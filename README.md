@@ -2,7 +2,7 @@
 
 This repo is created to setup the baremetal lab for metal3.
 
-!! This repository is now Archive and will become read-only.
+:heavy_exclamation_mark: This repository is now Archive and will become read-only.
 
 ## Ansible installation
 
