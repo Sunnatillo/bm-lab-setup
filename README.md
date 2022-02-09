@@ -2,6 +2,8 @@
 
 This repo is created to setup the baremetal lab for metal3.
 
+!! This repository is now Archive and will become read-only.
+
 ## Ansible installation
 
 `sudo pip3 install ansible`
