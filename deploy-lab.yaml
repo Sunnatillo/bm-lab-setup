@@ -2,6 +2,13 @@
   vars:
     bml_ilo_username: "{{ lookup('env', 'BML_ILO_USERNAME') }}"
     bml_ilo_password: "{{ lookup('env', 'BML_ILO_PASSWORD') }}"
+    node_ips:
+      - "192.168.1.12"
+      - "192.168.1.15"
+    serial_log_location: "/tmp/BMLlog"
+  environment:
+    EPHEMERAL_CLUSTER: "minikube"
+    EXTERNAL_VLAN_ID: 3
   tasks:
     - block:
       - name: Check required env vars are set
@@ -24,6 +31,75 @@
           group: root
           mode: 0400
         become: true
+        
+      # Note: This file is persistent, so even though we do this *after* sending the
+      # variables it is still helpful for the next run.
+      - name: Ensure that iLO credentials and github token can be passed over SSH
+        lineinfile:
+          path: "/etc/ssh/sshd_config"
+          line: "AcceptEnv LANG LC_* BML_*"
+        become: true
+        register: sshd_config
+
+      - name: Restart sshd if required
+        systemd:
+          name: sshd
+          state: restarted
+        become: true
+        when: sshd_config.changed
+
+      - name: Shrink size of syslog
+        become: true
+        become_user: root
+        shell:
+          cmd: truncate --size 10737418240 /var/log/syslog && truncate --size 10737418240 /var/log/syslog.1   2>/dev/null
+        ignore_errors: true
+        tags: cleanup
+
+      - name: Find old logs
+        ansible.builtin.find:
+          paths: /home/{{ ansible_user_id }}
+          recurse: no
+          patterns: "logs-jenkins-*"
+          file_type: any
+        register: old_logs
+        tags: cleanup
+
+      - name: Deleting files and folders from previous run
+        become: true
+        become_user: root
+        file:
+          state: absent
+          path: "{{ item }}"
+        with_items:
+          - "{{ old_logs.files | map(attribute='path') }}"
+          - /home/{{ ansible_user_id }}/go
+          - /home/{{ ansible_user_id }}/tested_repo
+          - /home/{{ ansible_user_id }}/metal3
+          - /home/{{ ansible_user_id }}/metal3-dev-env
+          - /opt/metal3-dev-env
+          - /tmp/mariadb.csr
+          - /tmp/ironic.csr
+          - "{{ serial_log_location }}"
+        tags: cleanup
+
+      - name: Delete existing ssh connections to HPE CLI
+        shell:
+          cmd: |
+            killall ssh
+            exit 0
+            EOT
+
+      - name: Start to capture log from virtual serial port
+        shell:
+          cmd: |
+            mkdir -p "{{ serial_log_location }}"
+            nohup /bin/bash <<EOF
+            ssh -o "KexAlgorithms diffie-hellman-group14-sha1" "{{ lookup('env', 'BML_ILO_USERNAME') }}"@{{ item }}  'vsp' > "{{ serial_log_location }}/{{ item }}.txt" &
+            EOF
+            exit 0
+            EOT
+        with_items: "{{ node_ips }}"
 
       - name: Clone the metal3-dev-env repo
         git:
@@ -32,12 +108,6 @@
           version: master
           update: no # allows local changes to persist for hacking on the repo
         tags: git
-
-      - name: Copy user config env vars file
-        copy:
-          src: config.sh
-          dest: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
-          mode: 0644
 
       - name: Clean any existing setup
         shell:
@@ -54,24 +124,14 @@
           chdir: "/home/{{ ansible_user_id }}/metal3-dev-env/"
         tags: install_requirements
 
-      - name: Set NUM_NODES to 0 for host setup (since we want to use real nodes instead of virtual ones)
-        lineinfile:
-          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
-          regexp: "^NUM_NODES="
-          line: "NUM_NODES=0"
-      - lineinfile:
-          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
-          regexp: "^NUM_OF_MASTER_REPLICAS="
-          line: "NUM_OF_MASTER_REPLICAS=0"
-      - lineinfile:
-          path: "/home/{{ ansible_user_id }}/metal3-dev-env/config_{{ ansible_user_id }}.sh"
-          regexp: "^NUM_OF_WORKER_REPLICAS="
-          line: "NUM_OF_WORKER_REPLICAS=0"
-
       - name: Configure host
         shell:
           cmd: "make configure_host"
           chdir: "/home/{{ ansible_user_id }}/metal3-dev-env/"
+        environment:
+          NUM_NODES: 0
+          NUM_OF_CONTROLPLANE_REPLICAS: 0
+          NUM_OF_WORKER_REPLICAS: 0
 
         # Allowing UDP forwarding allows minikube to use ipmitool (port 623) as
         # well as allowing TFTP traffic outside the host (random port)
